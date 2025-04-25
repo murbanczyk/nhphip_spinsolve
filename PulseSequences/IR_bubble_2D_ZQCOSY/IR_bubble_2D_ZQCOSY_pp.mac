@@ -1,0 +1,260 @@
+############################################################
+#
+# A pulse sequence suitable for performing a
+# gradient selected 2D IR_bubble_2D_ZQCOSY NMR experiment.
+#
+# Adaptiation of COSY ZQ sequence compatible with Indrek Reile bubling apparatus. Requires TTL emulation 
+#using arduino and python script to communicate with arduino.  
+# Shaped pulse has to be created using Topspin ShapeTool and
+# converted to Prospa format by UFTOOLBOX (in MATLAB)
+#
+# Copyright (c) Mateusz Urbanczyk IChF PAN 2024
+##
+############################################################
+
+procedure(pulse_program,dir,mode,pars)
+
+# Expose parameters for FX3 implementation
+   if(nrArgs == 3)
+      assignlist(pars)
+   endif
+
+# Interface description (name, label, ctrl, vartype)
+  interface = ["nucleus",       "Nuclei (f2-f1)",             "tb",  "readonly_string";
+               "b1Freq1H",      "1H frequency (MHz)",         "tb",  "freq";
+               "centerFreqPPM", "Centre frequency (ppm)",     "tb",  "float";
+               "bandwidthf1PPM", "Bandwidth in f1 (ppm)",     "tb",  "float";
+               "spoilDelay",    "Spoiler duration (us)",      "tb",  "sdelay";
+               "spoilAmp",      "Spoiler amplitude",          "tb",  "float,[-15000,15000]";
+                   "ShapedAmplitude", "ShapedRF amplitude (dB)",    "tb",    "pulseamp";
+               "tableButAmp",        "Select Amp. shapedrf file",         "bt",   "getTableFileAmp";
+               "tableFileNameAmp",   "Amplitude shapedrf file",                "tb",   "string";
+                 "tableButPh",        "Select Phase shapedrf file",         "bt",   "getTableFilePhase";
+               "tableFileNamePh",   "Phase shapedrf file",                "tb",   "string";
+               "90Amplitude1H", "90 Pulse amplitude (dB)",    "tb",  "pulseamp";
+               "pulseLength1H",   "1H 90 Pulse length (us)",         "tb",  "pulselength";
+                 "dd1",          "d1 delay (ms)",               "tb", "float";
+               "p16",             "red.grad. fin. echo  [ms]",   "tb", "float";
+               "del16",          "red.del.grad.fin.[ms]", "tb", "float";
+                "p19",             "gradient length [ms]" ,  "tb", "float";
+               "del19",          "Delay grad recovery [ms]", "tb", "float";
+               "shaplength"   ,   "Lenght of shapedRF [ms]", "tb", "pulselength";
+               "shapepoints"  ,   "No pts shapedRF",   "tb", "integer";
+               "cnst1",          "J(HH)"  ,                      "tb", "float";
+               "gradMax",           "Max. gradient mT/m",          "tb",   "float,[0,2000]";
+               "gradAmpPC1",         "Gradient Amp gp1 (%)",            "tb",   "float,[-100,100]";
+               "gradAmpPC2",         "Gradient Amp gp2 (%)",            "tb",   "float,[-100,100]";
+               "gradAmpPC3",         "Gradient Amp gp3 (%)",            "tb",   "float,[-100,100]";
+               "gradAmpPC4",         "Gradient Amp gp4 (%)",            "tb",   "float,[-100,100]";
+               "gradAmpPC5",         "Gradient Amp gp5 (%)",            "tb",   "float,[-100,100]";
+               "cosyType",      "Type of IR_bubble_2D_ZQCOSY",               "tm",  "string,[\"45\",\"90\"]";
+               "nrSteps",       "Number of steps",            "tb",  "integer";
+               "gradStab",      " NOTUSED (us)",    "tb",  "sdelay";
+               "dummyCycles",   "Number of dummy cycles",     "tb",  "integer,[0,16]";
+               "repTime",       "Repetition time (ms)",       "tb",  "reptime"]
+
+# Relationships to determine remaining variable values
+   relationships = ["n1          = nrPnts",
+                    "nxShim      = xshim",
+                    "nyShim      = yshim",
+                    "nzShim      = zshim",
+                    "ny          = (yshim-1.0*spoilAmp)",
+                    "nx          = (xshim-1.0*spoilAmp)",
+                    "nz          = (zshim-1.0*spoilAmp)",
+                    "dX          = IR_bubble_2D_ZQCOSY_pp:GetPulseLength(cosyType, pulseLength1H)",
+                    "a90Amp         = 90Amplitude1H",
+                    "d90Dur         = pulseLength1H",   
+                   "a90          = 90Amplitude1H",
+                    "d90        = pulseLength1H",            
+                    "bandwidth2  = single(bandwidthf1PPM*b1Freq1H/1000)",
+
+                    "wEvol       = 5e2* nrSteps/bandwidth2",
+                    "dSpoil      = spoilDelay",
+                    "dStab       = gradStab",
+                  "d45        = pulseLength1H*0.5", 
+                    "w1 = dd1*1000",               
+                     "nGradShim            = oshim",
+                    "gradRamp             = 0.1", 
+                    "nRampSteps           = 10",
+                    "dRampStep            = 1000*gradRamp/nRampSteps",
+                    "dp16       = p16*1000-dRampStep*2*nRampSteps",
+                    "dp19       = p19*1000-dRampStep*2*nRampSteps",
+                    "(digGradAmp2,gradAmp2) = IR_bubble_1D_SEPP_pp:getGradients(gradAmpPC2,oshim)",
+                    "(digGradAmp1,gradAmp1) = IR_bubble_1D_SEPP_pp:getGradients(gradAmpPC1,oshim)",
+                    "(digGradAmp3,gradAmp3) = IR_bubble_1D_SEPP_pp:getGradients(gradAmpPC3,oshim)",
+                    "(digGradAmp4,gradAmp4) = IR_bubble_1D_SEPP_pp:getGradients(gradAmpPC4,oshim)",
+                    "(digGradAmp5,gradAm5p) = IR_bubble_1D_SEPP_pp:getGradients(gradAmpPC5,oshim)",
+                     "tAmpPhase = IR_bubble_1D_SEPP_pp:getAmpPhaseTable( tableFileNameAmp, tableFileNamePh, ShapedAmplitude)",
+                    "nGradShim            = oshim",
+                  "nGrad1                = digGradAmp1+oshim",
+                  "nGrad2                = digGradAmp2+oshim",
+                    "nGrad3                = digGradAmp3+oshim",
+                  "nGrad4                = digGradAmp4+oshim", 
+                  "nGrad5                = digGradAmp5+oshim",
+                     "d16       =del16*1000",
+                     "d666  = p16/2*1000",
+                     "d4u = 4",
+                     "d4       = 1000000/(cnst1*4)-dp16-d16-dRampStep*2*nRampSteps",
+                     "d19       =del19*1000",
+                     "ntsize =shapepoints",
+                     "dstept = shaplength*1000/ntsize",
+                    "offFreq1H   = (centerFreqPPM-wvPPMOffset1H)*b1Freq1H",
+                    "freqCh1 = b1Freq1H + offFreq1H/1e6d",
+                    "totPnts     = nrPnts",
+                    "totTime     = acqTime"]
+
+# Define the pulse sequence parameter groups and their order
+   groups = ["Pulse_sequence","Acquisition2d",
+             "Processing_Std","Display_Std","File_Settings"]
+
+# These parameters will be changed between experiments
+   variables = ["wEvol"]
+
+# Pulse sequence
+   initpp(dir) # Reset internal parameter list
+wait(w1)
+   # Preparation 90 RF pulse
+      pulse(1,a90,p1,d90)
+   # Evolution time         
+      wait(wEvol)    
+      gradramp(nGradShim,nGrad1,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad1,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+      shapedrf2(1,tAmpPhase,p2,ntsize,dstept) #here will be shaped pulse reburp
+    gradramp(nGradShim,nGrad2,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad2,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+#delay(d666)
+#delay(d4u) # Not sure if needed? 4us delay
+
+   pulse(1,a90Amp,p3,d90Dur)        # z-filter
+delay(d4)
+      gradramp(nGradShim,nGrad3,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad3,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+      shapedrf2(1,tAmpPhase,p2,ntsize,dstept) #here will be shaped pulse reburp
+    gradramp(nGradShim,nGrad3,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad3,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+delay(d4)
+   pulse(1,a90Amp,p4,d90Dur)        # 
+ gradramp(nGradShim,nGrad4,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad4,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+   pulse(1,a90Amp,p5,d90Dur)        # final 90 for detection
+
+gradramp(nGradShim,nGrad5,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp19)
+      gradramp(nGrad5,nGradShim,nRampSteps,dRampStep)
+delay(d19)
+      shapedrf2(1,tAmpPhase,p2,ntsize,dstept) #here will be shaped pulse reburp
+ gradramp(nGradShim,nGrad5,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp19)
+      gradramp(nGrad5,nGradShim,nRampSteps,dRampStep)
+delay(d19)
+
+
+
+
+   # Spoiler                 
+     # Spoiler:XYZ(nx, ny, nz, nxShim, nyShim, nzShim, dSpoil, dStab)
+   # Detection  pulse (90/45)
+     # pulse(1,a90,p2,dX) 
+   # Spoiler          
+      #Spoiler:XYZ(nx, ny, nz, nxShim, nyShim, nzShim, dSpoil, dStab)
+   # Acquire FID
+      acquire("overwrite",n1)      
+   # Spoiling sequence at end
+     # Spoiler:Z(nz, nzShim, dSpoil, dStab)
+     # delay(dStab) # Extra settle delay
+     # Spoiler:Z(nz, nzShim, dSpoil, dStab)
+
+   lst = endpp(0) # Return parameter list
+
+# Phase cycle list
+   phaseList = [0,0,0,0; #p1
+                1,1,1,1; #p2
+                0,0,2,2; #p3
+                0,2,0,2; #p4
+                0,0,0,0; #p5
+                0,2,2,0] #pacq
+
+endproc(lst,groups,interface,relationships,variables,0,phaseList)
+
+# Return the second pulse length for 45 or 90 pulse
+procedure(GetPulseLength, type, pulseLength90)
+
+   if(type == "45")
+      length = pulseLength90/2
+   else
+      length = pulseLength90
+   endif
+
+endproc(length)
+
+
+#####################################################
+# Assign those parameters which should take their 
+# values from the factory defaults when making a 
+# new experiment
+#####################################################
+
+procedure(getFactoryBasedParameters, par)
+
+   specPar = SpinsolveParameterUpdater:readDSPPar(null)
+   if(specPar == null)
+      return(null)
+   endif
+   assignlist(specPar)
+
+   modelPar = ucsUtilities:getModelBasedParameters("1H",specPar)
+
+   par = ["rxGain = $modelPar->rxGain$",
+          "pulseLength1H = $PulseLength_1H$",
+          "90Amplitude1H = $PowerLevel_1H$",
+          "pulseLength1  = $PulseLength_1H$",
+          "amplitude1    = $PowerLevel_1H$",
+           "gradMax = $MaxGradientValue$",
+          "b1Freq1H      = $Frequency_1H$"]
+
+endproc(par)
+
+
+########################################################
+# Return the gradient as a 16 bit digital value
+# and as a value in mT/m
+########################################################
+
+procedure(getGradients, gPercent, gOffset)
+
+   if(gData->specParameters != null)
+      resolution = 16
+      maxGradient = gData->specParameters->MaxGradientValue 
+      digGradAmp  = gPercent/100*(2^(resolution-1)-1) # Digital - resolution bits
+      gradAmp     = gPercent/100*maxGradient
+   else
+      digGradAmp  = 10000
+      gradAmp     = 100
+   endif
+print(gPercent)
+print(digGradAmp)
+print(gradAmp)
+endproc(digGradAmp, gradAmp)
+
+
+procedure(getAmpPhaseTable, amptablePath, phasetablePath, ShapedAmplitude)
+import1dpar("ab", "ascii", "xyrc", "real")
+Amplitude=import1d(amptablePath)
+Phase=import1d(phasetablePath)
+print(size(Phase))
+Amptable = gFX3->convertAmplitude(ShapedAmplitude)* Amplitude
+tAmpPhase = gFX3->interleaveTables(Amptable,Phase)
+#print(tAmpPhase)
+endproc(tAmpPhase)
+
+      

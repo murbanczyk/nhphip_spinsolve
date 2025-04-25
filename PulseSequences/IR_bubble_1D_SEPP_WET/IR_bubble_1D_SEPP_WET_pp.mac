@@ -1,0 +1,367 @@
+###########################################################
+#  
+# A pulse sequence suitable for performing a
+# pulse and collect experiment on hydrogen nuclei
+# in the Spinsolve Spectrometer.
+#
+#
+# The acquisition delay is optimised to reduce 1st order
+# phase errors when the data is shifted forward in time 
+# (effectively putting the missed data at time zero where 
+# it just introduces a baseline offset.)
+#
+# pulse - delay - acq
+#
+############################################################
+
+procedure(pulse_program,dir,mode,pars)
+
+# Expose parameters for FX3 implementation
+   if(nrArgs == 3)
+      assignlist(pars)
+   endif
+
+# Interface description (name, label, ctrl, vartype)
+  interface = ["exptDiv",         "IR_bubble_1D_SEPP_WET",                    "dv",  "protonHelp";
+               "nucleus",         "Nucleus",                   "tb",  "readonly_string";
+               "b1Freq1H",        "1H frequency (MHz)",        "tb",  "freq";
+               "centerFreqPPM",   "Centre frequency (ppm)",    "tb",  "float";
+               "90Amplitude1H",   "Pulse amplitude (dB)",      "tb",  "pulseamp";
+               "ShapedAmplitude", "ShapedRF amplitude (dB)",    "tb",    "pulseamp";
+               "tableButAmp",        "Select Amp. shapedrf file",         "bt",   "getTableFileAmp";
+               "tableFileNameAmp",   "Amplitude shapedrf file",                "tb",   "string";
+                 "tableButPh",        "Select Phase shapedrf file",         "bt",   "getTableFilePhase";
+               "tableFileNamePh",   "Phase shapedrf file",                "tb",   "string";
+               "pulseLength1H",   "Pulse length (us)",         "tb",  "pulselength";
+                "dd1",          "d1 delay (ms)",               "tb", "float";
+               "p16",             "red.grad. fin. echo  [ms]",   "tb", "float";
+               "del16",          "red.del.grad.fin.[ms]", "tb", "float";
+                "p19",             "gradient length [ms]" ,  "tb", "float";
+               "del19",          "Delay grad recovery [ms]", "tb", "float";
+               "shaplength"   ,   "Lenght of shapedRF [ms]", "tb", "pulselength";
+               "shapepoints"  ,   "No pts shapedRF",   "tb", "integer";
+               "cnst1",          "J(HH)"  ,                      "tb", "float";
+               "gradMax",           "Max. gradient mT/m",          "tb",   "float,[0,2000]";
+               "gradAmpPC3",         "Gradient Amp gp3 (%)",            "tb",   "float,[-100,100]";
+               "gradAmpPC4",         "Gradient Amp gp4 (%)",            "tb",   "float,[-100,100]";
+               "gradAmpPC5",         "Gradient Amp gp5 (%)",            "tb",   "float,[-100,100]";
+ 
+                "b1Freq13C",         "13C Freq (MHz)",              "tb",   "freq";
+               "centerFreq13CPPM",  "Centre freq 13C (ppm)",       "tb",   "float";         
+               "pulseLengthH90",    "90 Pulse Dur (us)",           "tb",   "pulselength";
+               "amplitudeH90",      "90 Pulse Amp (dB)",           "tb",   "pulseamp";
+               "pulseLengthC180",    "Dec length 180 (us)",        "tb",   "pulselength";
+
+               "shiftPoints",       "Nr of points to shift",       "tb",   "float,[-100,100]";
+               "dummyScans",        "Nr of dummy scans",           "tb",   "integer,[0,16]";
+               "repTime",           "Repetition time (ms)",        "tb",   "reptime";
+			   
+               "spoilAmpWet",       "Spoil Amp   WET",             "tb",   "float,[1,32000]";
+               "spoilDurWet",       "Spoil Dur   WET (us)",        "tb",   "sdelay";
+               "gradStabWet",       "Spoil Stab  WET (us)",        "tb",   "sdelay";              
+               "decoupleAcq",       "13C   Dec   Acq?",            "cb",   "no,yes";
+               "decouplePre",       "13C   Dec   Presat?",         "cb",   "no,yes";
+               "decoupleAmpAcq",    "Dec Amp. Acq.  (dB)",         "tb",   "pulseamp";
+               "decoupleAmpPre",    "Dec Amp Presat (dB)",         "tb",   "pulseamp";
+              
+               "pulseLengthPs",     "Presat length (ms)",          "tb",   "float,[0,1e4]";
+               "Osup1",             "Presat freq 1 (ppm)",         "tb",   "float,[-1e6,1e6]";
+               "Osup2",             "Presat freq 2 (ppm)",         "tb",   "float,[-1e6,1e6]";
+               "Osup3",             "Presat freq 3 (ppm)",         "tb",   "float,[-1e6,1e6]";
+               "aSoft90",           "Pulse 90 Soft Amp (dB)",      "tb",   "float,[-85,-16]";
+               "useSup1",           "Use 1",                       "cb",   "no,yes";
+               "useSup2",           "Use 2",                       "cb",   "no,yes";
+               "useSup3",           "Use 3",                       "cb",   "no,yes";
+              
+               "supAmp",            "Sup  Grad. Amp",              "tb",   "float,[-32e3,32e3]";
+               "supOffset",         "Sup  offset (Hz)",            "tb",   "float";
+               "supAmplitude",      "Sup. Pulse Amp (dB)",         "tb",   "pulseamp";
+               "supDuration",       "Sup. Pulse Dur (ms)",         "tb",   "float,[0,50000]";
+               "supRange",          "Freq sweep range (kHz)",      "tb",   "float,[-10,10]";
+
+               "acquDiv",         "Acquisition",               "dv",  "acqHelp";
+               "rxGain",          "Receiver gain",             "tm",  "integer,[-20:3:70]";
+               "rxChannel",       "Receiver channel",          "tm",  "string,[\"1H\"]";
+               "rxPhase",         "Receiver phase",            "tb",  "float,[-360,360]";
+               "nrPnts",          "Number of points",          "tm",  "integer,[4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768]";
+               "dwellTime",       "Dwell time (us)",           "tm",  "float,[0.5,1,2,5,10,20,50,100,200,500,1000,2000]";
+               "nrScans",         "Number of scans",           "tb",  "float,[1,1e8]";
+               "flatFilter",      "Flat filter",               "cb",  "no,yes";
+               "accumulate",      "Accumulate data",           "cb",  "no,yes";
+               "usePhaseCycle",   "Phase cycle",               "cb",  "no,yes";
+               "bandwidth",       "Bandwidth (kHz)",           "tb2", "float";
+               "acqTime",         "Acquisition time (ms)",     "tb",  "float";
+               "procDiv",         "Processing",                "dv",  "procHelp";
+               "zf",              "Zero fill factor?",         "tm",  "integer,[1,2,4,8,16]";
+               "filter",          "Apodisation filter?",       "cb",  "no,yes";
+               "filterType",      "Filter type",               "tm", "string,[\"none\",\"exp:1\"]";
+               "tdPhaseCorr",     "Time. domain phasing",      "tm", "string,[\"autophase\",\"mag\",\"none\"]";
+               "fdPhaseCorr",     "Freq. domain phasing",      "tm", "string,[\"autophase\",\"mag\",\"none\"]";
+               "dispDiv",         "Display",                   "dv",  "dispHelp";
+               "usePPMScale",     "Use ppm scale?",            "cb",  "no,yes";
+               "dispRangeMinPPM", "Minimum ppm value",         "tb",  "float,[-2000,2000]";
+               "dispRangeMaxPPM", "Maximum ppm value",         "tb",  "float,[-2000,2000]";
+               "dispRange",       "Display range (Hz)",        "tb",  "float,[0,2e6]";
+               "filesDiv",        "Files",                     "dv",  "fileHelp";
+               "saveData",        "Save data?",                "cb",  "false,true"]
+
+# Define the tab groups and their order
+#   groups = ["Pulse_sequence","Acquisition",
+#             "Processing_Std","Display_Std","File_Settings"]
+
+# Relationships to determine remaining variable values
+   relationships = ["nDataPnts  = nrPnts",
+                    "a90Amp     = 90Amplitude1H",
+                    "d90Dur     = pulseLength1H",
+                    "d45        = pulseLength1H*0.5", 
+                     "centerFreq1HPPM = centerFreqPPM",
+                   "offFreq1H            = (centerFreq1HPPM-wvPPMOffset1H)*b1Freq1H",
+                    "offFreq13C           = (centerFreq13CPPM-wvPPMOffset13C)*b1Freq13C",
+                    "O1                   = offFreq1H",
+                    "f1H                  = double(b1Freq1H)+double(offFreq1H/1e6d)", 
+                    "f13C                 = double(b1Freq13C)+double(offFreq13C/1e6d)",
+                    
+                    "nPnts                = nrPnts",
+
+                    "d90H                 = pulseLengthH90",              # Hard 1H-pulse duration																						
+                    "a90H                 = amplitudeH90",                # Hardpulse amplitude
+
+                    "d90C                 = pulseLengthC180/2",
+                    "d180C                = pulseLengthC180",
+                    "d270C                = 3*pulseLengthC180/2",
+                    "d360C                = 2*pulseLengthC180",  
+                    "aDec                 = decoupleAmpAcq",              # Decouple pulse amplitude
+                   
+                    "nAcquire             = decoupleAcq==\"no\"",                  
+                    "nDecouple            = decoupleAcq==\"yes\"",                  
+                    "waltzDuration        = WALTZ16:duration(pulseLengthC180/2,pgo)",
+                    "nLoops               = trunc(1000*acqTime/waltzDuration)+1",
+                    "totPnts              = nrPnts",
+                    "totTime              = acqTime",                                                   
+                                      
+                    "dAcqDelay            =(0.255*dwellTime-0.63)-(0.57117 + 0.000145*dwellTime)*d90H",
+                 
+
+                    "nxShim               = xshim",
+                    "nyShim               = yshim",
+                    "nzShim               = zshim",
+                       
+                    "dSpoilWet            = spoilDurWet",
+                    "dStabWet             = gradStabWet",
+                 
+                    "nxSpoil1w            = xshim-sign(xshim)*spoilAmpWet/1", # x shim spoiler amplitude
+                    "nxSpoil2w            = xshim-sign(xshim)*spoilAmpWet/2", # x shim spoiler amplitude
+                    "nxSpoil3w            = xshim-sign(xshim)*spoilAmpWet/4", # x shim spoiler amplitude
+                    "nxSpoil4w            = xshim-sign(xshim)*spoilAmpWet/8", # x shim spoiler amplitude
+                    
+                    "nySpoil1w            = yshim-sign(yshim)*spoilAmpWet/8", # y shim spoiler amplitude
+                    "nySpoil2w            = yshim-sign(yshim)*spoilAmpWet/4", # y shim spoiler amplitude
+                    "nySpoil3w            = yshim-sign(yshim)*spoilAmpWet/2", # y shim spoiler amplitude
+                    "nySpoil4w            = yshim-sign(yshim)*spoilAmpWet/1", # y shim spoiler amplitude
+                    
+                    "nzSpoil1w            = zshim-sign(zshim)*spoilAmpWet/1", # z shim spoiler amplitude
+                    "nzSpoil2w            = zshim-sign(zshim)*spoilAmpWet/2", # z shim spoiler amplitude
+                    "nzSpoil3w            = zshim-sign(zshim)*spoilAmpWet/4", # z shim spoiler amplitude
+                    "nzSpoil4w            = zshim-sign(zshim)*spoilAmpWet/8", # z shim spoiler amplitude
+                 
+                    "nzSup                = zshim-sign(zshim)*supAmp", # z slice amplitude
+                  
+                    "aSup1                = aSoft90 - 1.0",              # Softpulse1 amplitude
+                    "aSup2                = aSoft90 + 1.0",              # Softpulse2 amplitude
+                    "aSup3                = aSoft90 - 2.0",              # Softpulse3 amplitude
+                    "aSup4                = aSoft90 + 5.0",              # Softpulse4 amplitude
+                  
+                    "(tAmpPhase1,nTabSz,dStep) = getwetpar1(1000*pulseLengthPs,Osup1,aSup1,useSup1,Osup2,useSup2,Osup3,useSup3,b1Freq1H,decoupleAmpPre,decouplePre,pulseLengthC180/2,centerFreq1HPPM)",
+                    "(tAmpPhase2,nTabSz,dStep) = getwetpar1(1000*pulseLengthPs,Osup1,aSup2,useSup1,Osup2,useSup2,Osup3,useSup3,b1Freq1H,decoupleAmpPre,decouplePre,pulseLengthC180/2,centerFreq1HPPM)",
+                    "(tAmpPhase3,nTabSz,dStep) = getwetpar1(1000*pulseLengthPs,Osup1,aSup3,useSup1,Osup2,useSup2,Osup3,useSup3,b1Freq1H,decoupleAmpPre,decouplePre,pulseLengthC180/2,centerFreq1HPPM)",
+                    "(tAmpPhase4,nTabSz,dStep) = getwetpar1(1000*pulseLengthPs,Osup1,aSup4,useSup1,Osup2,useSup2,Osup3,useSup3,b1Freq1H,decoupleAmpPre,decouplePre,pulseLengthC180/2,centerFreq1HPPM)",
+                   
+                    "(tSoft,dummy,n301,d301) = getwetpar2(supAmplitude,supDuration,supRange,supOffset)"
+
+
+
+
+
+                    "d1111 = dd1*1000",        
+                     "nGradShim            = oshim",
+                    "gradRamp             = 0.1", 
+                    "nRampSteps           = 10",
+                    "dRampStep            = 1000*gradRamp/nRampSteps",
+                    "dp16       = p16*1000-dRampStep*2*nRampSteps",
+                    "dp19       = p19*1000-dRampStep*2*nRampSteps",
+                    "(digGradAmp3,gradAmp3) = IR_bubble_1D_SEPP_WET_pp:getGradients(gradAmpPC3,oshim)",
+                    "(digGradAmp4,gradAmp4) = IR_bubble_1D_SEPP_WET_pp:getGradients(gradAmpPC4,oshim)",
+                    "(digGradAmp5,gradAm5p) = IR_bubble_1D_SEPP_WET_pp:getGradients(gradAmpPC5,oshim)",
+                     "tAmpPhase = IR_bubble_1D_SEPP_WET_pp:getAmpPhaseTable( tableFileNameAmp, tableFileNamePh, ShapedAmplitude)",
+                    "nGradShim            = oshim",
+                    "nGrad3                = digGradAmp3+oshim",
+                  "nGrad4                = digGradAmp4+oshim",
+ 
+                  "nGrad5                = digGradAmp5+oshim",
+                     "d16       =del16*1000",
+                     "d4       = 1000000/(cnst1*4)-dp16-d16",
+                     "d19       =del19*1000",
+                     "ntsize =shapepoints",
+                     "dstept = shaplength*1000/ntsize",
+                    # "dstep= 0.1",
+                    "dAcqDelay  = ucsUtilities:getacqDelay(d90Dur,shiftPoints,dwellTime)",
+
+
+
+                    "offFreq1H  = (centerFreqPPM-wvPPMOffset1H)*b1Freq1H",
+                    "freqCh1    = double(b1Freq1H)+double(offFreq1H/1e6d)",
+                    "freqRx     = freqCh1",
+                    "totPnts    = nrPnts",
+                    "totTime    = acqTime"]
+
+# These parameters will be changed between experiments
+   variables = ["tSoft"]
+ 
+# Pulse sequence
+   initpp(dir)                      # Define compile directory and clear parameter list
+#  delay(d1111) # 
+
+   waltzdecsetup(2, aDec, f13C)
+      delay(10000)
+
+    # Set the transmit frequencies for 1H and 13C
+      settxfreqs(f1H,f13C)    
+      delay(10000)  
+
+    # The WET Suppression sequence
+      wetsuppress(tAmpPhase1,tAmpPhase2,tAmpPhase3,tAmpPhase4,p4,p4,nTabSz,dStep, 
+                  nxSpoil1w,nySpoil1w,nzSpoil1w,nxSpoil2w,nySpoil2w,nzSpoil2w,nxSpoil3w,nySpoil3w,nzSpoil3w,nxSpoil4w,nySpoil4w,nzSpoil4w,
+                  nxShim, nyShim, nzShim, nzSup, dSpoilWet, dStabWet,
+                  tSoft,p4,n301,d301)
+
+
+ 
+
+   pulse(1,a90Amp,p1,d45)        # RF pulse on channel 1 with phase p1
+   delay(d4)
+      gradramp(nGradShim,nGrad3,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad3,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+      shapedrf2(1,tAmpPhase,p2,ntsize,dstept) #here will be shaped pulse reburp
+    gradramp(nGradShim,nGrad3,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad3,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+
+delay(d4)
+#delay(4) # Not sure if needed?
+   pulse(1,a90Amp,p3,d90Dur)        # z-filter
+  gradramp(nGradShim,nGrad4,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp16)
+      gradramp(nGrad4,nGradShim,nRampSteps,dRampStep)
+delay(d16)
+   pulse(1,a90Amp,p4,d90Dur)        # final 90 for detection
+ gradramp(nGradShim,nGrad5,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp19)
+      gradramp(nGrad5,nGradShim,nRampSteps,dRampStep)
+delay(d19)
+      shapedrf2(1,tAmpPhase,p5,ntsize,dstept) #here will be shaped pulse reburp
+ gradramp(nGradShim,nGrad5,nRampSteps,dRampStep) # as there are no shaped gradients we use gradient ramp
+      delay(dp19)
+      gradramp(nGrad5,nGradShim,nRampSteps,dRampStep)
+delay(d19)
+delay(dAcqDelay)
+   acquire("overwrite",nDataPnts)   # Acquire FID
+
+   parList = endpp(0)                # Combine commands and return parameter list
+
+# Phase cycle list
+   phaseList  = [0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2; #p1
+                 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1;#p2
+                 1,1,3,3,1,1,3,3,1,1,3,3,1,1,3,3; #p3
+                 0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3; #p4
+                 1,1,1,1,2,2,2,2,3,3,3,3,0,0,0,0; #p5
+                 0,2,2,0,1,3,3,1,2,0,0,2,3,1,1,3] #p31 acquistion 
+endproc(parList,list(0),interface,relationships,variables,null,phaseList)
+
+
+#####################################################
+# Assign those parameters which should take their 
+# values from the factory defaults when making a 
+# new experiment
+#####################################################
+
+procedure(getFactoryBasedParameters, par)
+
+   specPar = SpinsolveParameterUpdater:readDSPParameters("1H")
+   if(specPar == null)
+      return(null)
+   endif
+   assignlist(specPar)
+
+   modelPar = ucsUtilities:getModelBasedParameters("1H",specPar)
+
+   par = ["rxGain        = $modelPar->rxGain$",
+          "pulseLength1H = $PulseLength_1H$",
+    "b1Freq13C         = $Frequency_X$",
+ "pulseLengthH90    = $Low_Power_90_Duration$",
+             "amplitudeH90      = $Low_Power_90_Power$",
+             "pulseLengthC180   = $Pulse_length_X*4$",
+             "decoupleAmpAcq    = -12",
+ "decoupleAmpPre    = -12",
+          "90Amplitude1H = $PowerLevel_1H$",
+          "b1Freq1H      = $Frequency_1H$",
+            "gradMax = $MaxGradientValue$"]
+
+   if((HardwareCap2 & 0x04) > 0) # If parameters for WET have been defined then use them
+
+          par  = par  + [
+             "aSoft90         = $Wet_Shaped_Power_1$",
+             "supAmplitude    = $Wet_Special_Power$",
+             "supDuration     = $Wet_Special_Duration$",
+             "supRange        = $Wet_Special_Bandwidth/1000$",
+             "supAmp          = $Wet_Special_Shim$",
+             "supOffset       = $Wet_Special_Offset$",
+             "pulseLengthPs   = $Wet_Shaped_Duration_1$"]
+   else
+
+      print("\n   Warning - the optimal parameters for the WET experiment have not\n   been defined - defaults will be used. Please contact Magritek for\n   help in optimizing this experiment.\n")
+
+   endif
+
+
+endproc(par)
+
+
+########################################################
+# Return the gradient as a 16 bit digital value
+# and as a value in mT/m
+########################################################
+
+procedure(getGradients, gPercent, gOffset)
+
+   if(gData->specParameters != null)
+      resolution = 16
+      maxGradient = gData->specParameters->MaxGradientValue 
+      digGradAmp  = gPercent/100*(2^(resolution-1)-1) # Digital - resolution bits
+      gradAmp     = gPercent/100*maxGradient
+   else
+      digGradAmp  = 10000
+      gradAmp     = 100
+   endif
+print(gPercent)
+print(digGradAmp)
+print(gradAmp)
+endproc(digGradAmp, gradAmp)
+
+
+procedure(getAmpPhaseTable, amptablePath, phasetablePath, ShapedAmplitude)
+import1dpar("ab", "ascii", "xyrc", "real")
+Amplitude=import1d(amptablePath)
+Phase=import1d(phasetablePath)
+print(size(Phase))
+Amptable = gFX3->convertAmplitude(ShapedAmplitude)* Amplitude
+tAmpPhase = gFX3->interleaveTables(Amptable,Phase)
+#print(tAmpPhase)
+endproc(tAmpPhase)
+
+
+
+
+
